@@ -1,419 +1,317 @@
-echo "# kirby-game" >> README.md
-git init
-git add README.md
-git commit -m "first commit"
-git branch -M main
-git remote add origin https://github.com/ratatoui16/kirby-game.git
-git push -u origin main
-export default function KirbyStylePlatformer() {
-  return (
-    <div className="w-full h-screen bg-sky-200 flex items-center justify-center text-slate-900 p-8">
-      <div className="max-w-5xl w-full bg-white rounded-3xl shadow-2xl p-6 space-y-4 overflow-auto h-full">
-        <h1 className="text-4xl font-bold">Kirby-Style Platformer Game</h1>
-        <p className="text-lg">
-          This is a complete single-file React game inspired by classic 2D Kirby platformers.
-          Features include:
-        </p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kirby Style Game</title>
 
-        <ul className="list-disc pl-6 space-y-1 text-base">
-          <li>2D side-scrolling platformer gameplay</li>
-          <li>Jumping and gravity physics</li>
-          <li>Enemy swallowing mechanic</li>
-          <li>Power stealing system</li>
-          <li>Fire and sword abilities</li>
-          <li>Projectile attacks</li>
-          <li>Health system</li>
-          <li>Animated enemies</li>
-        </ul>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #1e293b;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      font-family: Arial, sans-serif;
+    }
 
-        <div className="bg-slate-900 text-green-300 rounded-2xl p-4 overflow-auto text-sm">
-<pre>{String.raw`import React, { useEffect, useRef, useState } from "react";
+    canvas {
+      border: 4px solid white;
+      border-radius: 16px;
+      background: #87ceeb;
+    }
+  </style>
+</head>
 
-const WIDTH = 1000;
-const HEIGHT = 560;
-const GROUND = 480;
+<body>
+  <canvas id="game" width="1000" height="560"></canvas>
 
-const PLAYER_SPEED = 4;
-const JUMP_FORCE = -12;
-const GRAVITY = 0.55;
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
 
-const enemyTemplates = [
-  {
-    id: 1,
-    x: 420,
-    y: 440,
-    type: "fire",
-    color: "orange",
-    dir: -1,
-  },
-  {
-    id: 2,
-    x: 700,
-    y: 440,
-    type: "sword",
-    color: "deepskyblue",
-    dir: 1,
-  },
-  {
-    id: 3,
-    x: 980,
-    y: 440,
-    type: "none",
-    color: "limegreen",
-    dir: -1,
-  },
-];
+    const WIDTH = canvas.width;
+    const HEIGHT = canvas.height;
+    const GROUND = 480;
 
-export default function Game() {
-  const canvasRef = useRef(null);
+    const GRAVITY = 0.55;
+    const SPEED = 4;
+    const JUMP = -12;
 
-  const [player, setPlayer] = useState({
-    x: 120,
-    y: 380,
-    w: 42,
-    h: 42,
-    vx: 0,
-    vy: 0,
-    onGround: false,
-    facing: 1,
-    power: "none",
-    hp: 5,
-    inhaling: false,
-  });
+    const keys = {};
 
-  const [enemies, setEnemies] = useState(enemyTemplates);
-  const [projectiles, setProjectiles] = useState([]);
-  const [keys, setKeys] = useState({});
-
-  useEffect(() => {
-    const down = (e) => {
-      setKeys((k) => ({ ...k, [e.key.toLowerCase()]: true }));
+    const player = {
+      x: 120,
+      y: 380,
+      w: 42,
+      h: 42,
+      vx: 0,
+      vy: 0,
+      onGround: false,
+      facing: 1,
+      power: "none",
+      inhaling: false
     };
 
-    const up = (e) => {
-      setKeys((k) => ({ ...k, [e.key.toLowerCase()]: false }));
-    };
-
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-
-    return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-    };
-  }, []);
-
-  useEffect(() => {
-    const interval = setInterval(gameLoop, 1000 / 60);
-    return () => clearInterval(interval);
-  });
-
-  function shoot(power, x, y, dir) {
-    if (power === "none") return;
-
-    setProjectiles((p) => [
-      ...p,
+    const enemies = [
       {
-        id: Math.random(),
-        x,
-        y,
-        dir,
-        power,
+        x: 420,
+        y: 440,
+        color: "orange",
+        type: "fire",
+        dir: -1
       },
-    ]);
-  }
+      {
+        x: 700,
+        y: 440,
+        color: "deepskyblue",
+        type: "sword",
+        dir: 1
+      },
+      {
+        x: 980,
+        y: 440,
+        color: "limegreen",
+        type: "none",
+        dir: -1
+      }
+    ];
 
-  function gameLoop() {
-    setPlayer((p) => {
-      let vx = 0;
-      let vy = p.vy + GRAVITY;
-      let x = p.x;
-      let y = p.y;
-      let facing = p.facing;
-      let inhaling = false;
+    const projectiles = [];
+
+    document.addEventListener("keydown", (e) => {
+      keys[e.key.toLowerCase()] = true;
+    });
+
+    document.addEventListener("keyup", (e) => {
+      keys[e.key.toLowerCase()] = false;
+    });
+
+    function shoot() {
+      if (player.power === "none") return;
+
+      projectiles.push({
+        x: player.x + 20,
+        y: player.y + 20,
+        dir: player.facing,
+        power: player.power
+      });
+    }
+
+    function update() {
+
+      // MOVEMENT
+      player.vx = 0;
 
       if (keys["a"] || keys["arrowleft"]) {
-        vx = -PLAYER_SPEED;
-        facing = -1;
+        player.vx = -SPEED;
+        player.facing = -1;
       }
 
       if (keys["d"] || keys["arrowright"]) {
-        vx = PLAYER_SPEED;
-        facing = 1;
+        player.vx = SPEED;
+        player.facing = 1;
       }
 
-      if ((keys["w"] || keys[" "] || keys["arrowup"]) && p.onGround) {
-        vy = JUMP_FORCE;
+      if ((keys["w"] || keys[" "] || keys["arrowup"]) && player.onGround) {
+        player.vy = JUMP;
       }
 
+      player.inhaling = false;
+
+      // INHALE
       if (keys["j"]) {
-        inhaling = true;
+        player.inhaling = true;
 
-        setEnemies((enemyList) => {
-          const updated = enemyList.filter((enemy) => {
-            const dx = enemy.x - p.x;
-            const dy = Math.abs(enemy.y - p.y);
+        for (let i = enemies.length - 1; i >= 0; i--) {
+          const e = enemies[i];
 
-            const close = Math.abs(dx) < 70 && dy < 50;
-            const inFront = facing === 1 ? dx > 0 : dx < 0;
+          const dx = e.x - player.x;
+          const dy = Math.abs(e.y - player.y);
 
-            if (close && inFront) {
-              setPlayer((old) => ({
-                ...old,
-                power: enemy.type,
-              }));
-              return false;
-            }
+          const close = Math.abs(dx) < 70 && dy < 50;
+          const inFront = player.facing === 1 ? dx > 0 : dx < 0;
 
-            return true;
-          });
-
-          return updated;
-        });
-      }
-
-      if (keys["k"]) {
-        shoot(p.power, p.x + 20, p.y + 20, facing);
-      }
-
-      x += vx;
-      y += vy;
-
-      let onGround = false;
-
-      if (y + p.h >= GROUND) {
-        y = GROUND - p.h;
-        vy = 0;
-        onGround = true;
-      }
-
-      return {
-        ...p,
-        x,
-        y,
-        vx,
-        vy,
-        facing,
-        onGround,
-        inhaling,
-      };
-    });
-
-    setEnemies((enemyList) =>
-      enemyList.map((e) => {
-        let x = e.x + e.dir * 1.1;
-        let dir = e.dir;
-
-        if (x < 300) dir = 1;
-        if (x > 1400) dir = -1;
-
-        return {
-          ...e,
-          x,
-          dir,
-        };
-      })
-    );
-
-    setProjectiles((shots) =>
-      shots
-        .map((s) => ({
-          ...s,
-          x: s.x + s.dir * 7,
-        }))
-        .filter((s) => s.x > -100 && s.x < 3000)
-    );
-
-    setEnemies((enemyList) => {
-      return enemyList.filter((enemy) => {
-        let hit = false;
-
-        projectiles.forEach((shot) => {
-          const overlap =
-            shot.x < enemy.x + 34 &&
-            shot.x + 12 > enemy.x &&
-            shot.y < enemy.y + 34 &&
-            shot.y + 12 > enemy.y;
-
-          if (overlap) {
-            hit = true;
+          if (close && inFront) {
+            player.power = e.type;
+            enemies.splice(i, 1);
           }
-        });
+        }
+      }
 
-        return !hit;
+      // ATTACK
+      if (keys["k"] && !keys["_attackHeld"]) {
+        shoot();
+        keys["_attackHeld"] = true;
+      }
+
+      if (!keys["k"]) {
+        keys["_attackHeld"] = false;
+      }
+
+      // GRAVITY
+      player.vy += GRAVITY;
+
+      player.x += player.vx;
+      player.y += player.vy;
+
+      // GROUND COLLISION
+      if (player.y + player.h >= GROUND) {
+        player.y = GROUND - player.h;
+        player.vy = 0;
+        player.onGround = true;
+      } else {
+        player.onGround = false;
+      }
+
+      // ENEMY MOVEMENT
+      enemies.forEach((e) => {
+        e.x += e.dir * 1.1;
+
+        if (e.x < 300) e.dir = 1;
+        if (e.x > 1400) e.dir = -1;
       });
-    });
 
-    draw();
-  }
+      // PROJECTILES
+      for (let i = projectiles.length - 1; i >= 0; i--) {
+        const p = projectiles[i];
 
-  function draw() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+        p.x += p.dir * 7;
 
-    const ctx = canvas.getContext("2d");
+        if (p.x < -100 || p.x > 3000) {
+          projectiles.splice(i, 1);
+        }
+      }
 
-    ctx.clearRect(0, 0, WIDTH, HEIGHT);
+      // PROJECTILE HITS
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        const e = enemies[i];
 
-    ctx.fillStyle = "#9be7ff";
-    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+        for (let j = projectiles.length - 1; j >= 0; j--) {
+          const p = projectiles[j];
 
-    ctx.fillStyle = "#6bd16b";
-    ctx.fillRect(0, GROUND, WIDTH, HEIGHT - GROUND);
+          const hit =
+            p.x < e.x + 34 &&
+            p.x + 12 > e.x &&
+            p.y < e.y + 34 &&
+            p.y + 12 > e.y;
 
-    ctx.fillStyle = "#4a9f4a";
-
-    for (let i = 0; i < WIDTH; i += 64) {
-      ctx.fillRect(i, GROUND - 10, 64, 10);
+          if (hit) {
+            enemies.splice(i, 1);
+            projectiles.splice(j, 1);
+            break;
+          }
+        }
+      }
     }
 
-    ctx.fillStyle = "pink";
-    ctx.beginPath();
-    ctx.arc(player.x + 21, player.y + 21, 21, 0, Math.PI * 2);
-    ctx.fill();
+    function draw() {
+      ctx.clearRect(0, 0, WIDTH, HEIGHT);
 
-    ctx.fillStyle = "black";
-    ctx.beginPath();
-    ctx.arc(player.x + 16, player.y + 17, 2, 0, Math.PI * 2);
-    ctx.fill();
+      // SKY
+      ctx.fillStyle = "#9be7ff";
+      ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-    ctx.beginPath();
-    ctx.arc(player.x + 26, player.y + 17, 2, 0, Math.PI * 2);
-    ctx.fill();
+      // GROUND
+      ctx.fillStyle = "#6bd16b";
+      ctx.fillRect(0, GROUND, WIDTH, HEIGHT - GROUND);
 
-    if (player.inhaling) {
-      ctx.strokeStyle = "white";
-      ctx.lineWidth = 4;
+      // GROUND DETAIL
+      ctx.fillStyle = "#4a9f4a";
 
-      const mouthX = player.facing === 1 ? player.x + 40 : player.x + 2;
+      for (let i = 0; i < WIDTH; i += 64) {
+        ctx.fillRect(i, GROUND - 10, 64, 10);
+      }
+
+      // PLAYER
+      ctx.fillStyle = "pink";
 
       ctx.beginPath();
-      ctx.moveTo(mouthX, player.y + 21);
-      ctx.lineTo(mouthX + player.facing * 50, player.y + 21);
-      ctx.stroke();
-    }
-
-    if (player.power === "fire") {
-      ctx.fillStyle = "orange";
-      ctx.fillRect(player.x + 8, player.y - 8, 26, 8);
-    }
-
-    if (player.power === "sword") {
-      ctx.fillStyle = "silver";
-      ctx.fillRect(player.x + 32, player.y + 12, 22, 5);
-    }
-
-    enemies.forEach((enemy) => {
-      ctx.fillStyle = enemy.color;
-      ctx.beginPath();
-      ctx.arc(enemy.x + 17, enemy.y + 17, 17, 0, Math.PI * 2);
+      ctx.arc(player.x + 21, player.y + 21, 21, 0, Math.PI * 2);
       ctx.fill();
 
+      // EYES
       ctx.fillStyle = "black";
-      ctx.fillRect(enemy.x + 10, enemy.y + 12, 3, 3);
-      ctx.fillRect(enemy.x + 20, enemy.y + 12, 3, 3);
-    });
-
-    projectiles.forEach((shot) => {
-      ctx.fillStyle = shot.power === "fire" ? "red" : "white";
 
       ctx.beginPath();
-      ctx.arc(shot.x, shot.y, 8, 0, Math.PI * 2);
+      ctx.arc(player.x + 16, player.y + 17, 2, 0, Math.PI * 2);
       ctx.fill();
-    });
 
-    ctx.fillStyle = "black";
-    ctx.font = "20px Arial";
-    ctx.fillText("Power: " + player.power, 20, 30);
-    ctx.fillText("Controls: A/D Move | W Jump | J Inhale | K Attack", 20, 55);
-  }
+      ctx.beginPath();
+      ctx.arc(player.x + 26, player.y + 17, 2, 0, Math.PI * 2);
+      ctx.fill();
 
-  return (
-    <div
-      style={{
-        width: "100vw",
-        height: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#1e293b",
-      }}
-    >
-      <canvas
-        ref={canvasRef}
-        width={WIDTH}
-        height={HEIGHT}
-        style={{
-          border: "4px solid white",
-          borderRadius: 16,
-          background: "#87ceeb",
-        }}
-      />
-    </div>
-  );
-}
-`}</pre>
-        </div>
+      // INHALE EFFECT
+      if (player.inhaling) {
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 4;
 
-        <div className="space-y-3 text-base">
-          <h2 className="text-2xl font-semibold">GitHub Ready Setup</h2>
+        const mouthX = player.facing === 1
+          ? player.x + 40
+          : player.x + 2;
 
-          <div className="bg-slate-100 rounded-2xl p-4 space-y-4 text-sm">
-            <p className="font-semibold">1. Create Project</p>
-<pre>{String.raw`npm create vite@latest kirby-game -- --template react
-cd kirby-game
-npm install`}</pre>
+        ctx.beginPath();
+        ctx.moveTo(mouthX, player.y + 21);
+        ctx.lineTo(mouthX + player.facing * 50, player.y + 21);
+        ctx.stroke();
+      }
 
-            <p className="font-semibold">2. Replace src/App.jsx</p>
-            <p>Paste the game code into src/App.jsx</p>
+      // POWERS
+      if (player.power === "fire") {
+        ctx.fillStyle = "orange";
+        ctx.fillRect(player.x + 8, player.y - 8, 26, 8);
+      }
 
-            <p className="font-semibold">3. Run Locally</p>
-<pre>{String.raw`npm run dev`}</pre>
+      if (player.power === "sword") {
+        ctx.fillStyle = "silver";
+        ctx.fillRect(player.x + 32, player.y + 12, 22, 5);
+      }
 
-            <p className="font-semibold">4. Build For GitHub Pages</p>
-<pre>{String.raw`npm install gh-pages --save-dev`}</pre>
+      // ENEMIES
+      enemies.forEach((e) => {
+        ctx.fillStyle = e.color;
 
-            <p className="font-semibold">5. Update package.json</p>
-<pre>{String.raw`{
-  "homepage": "https://YOUR_GITHUB_USERNAME.github.io/kirby-game",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "deploy": "gh-pages -d dist"
-  }
-}`}</pre>
+        ctx.beginPath();
+        ctx.arc(e.x + 17, e.y + 17, 17, 0, Math.PI * 2);
+        ctx.fill();
 
-            <p className="font-semibold">6. Create vite.config.js</p>
-<pre>{String.raw`import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+        ctx.fillStyle = "black";
+        ctx.fillRect(e.x + 10, e.y + 12, 3, 3);
+        ctx.fillRect(e.x + 20, e.y + 12, 3, 3);
+      });
 
-export default defineConfig({
-  plugins: [react()],
-  base: '/kirby-game/'
-})`}</pre>
+      // PROJECTILES
+      projectiles.forEach((p) => {
+        ctx.fillStyle =
+          p.power === "fire" ? "red" : "white";
 
-            <p className="font-semibold">7. Deploy To GitHub</p>
-<pre>{String.raw`git init
-git add .
-git commit -m "Initial commit"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/kirby-game.git
-git push -u origin main
-npm run build
-npm run deploy`}</pre>
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+      });
 
-            <div className="bg-sky-100 rounded-xl p-4">
-              <p className="font-semibold">Controls</p>
-              <ul className="list-disc pl-6 mt-2">
-                <li>A / D → Move</li>
-                <li>W or Space → Jump</li>
-                <li>J → Inhale enemies</li>
-                <li>K → Attack</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+      // UI
+      ctx.fillStyle = "black";
+      ctx.font = "20px Arial";
+
+      ctx.fillText("Power: " + player.power, 20, 30);
+
+      ctx.fillText(
+        "A/D Move | W Jump | J Eat | K Attack",
+        20,
+        55
+      );
+    }
+
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    loop();
+  </script>
+</body>
+</html>
