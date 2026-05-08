@@ -1,317 +1,253 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Kirby Style Game</title>
-
-  <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      background: #1e293b;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      font-family: Arial, sans-serif;
-    }
-
-    canvas {
-      border: 4px solid white;
-      border-radius: 16px;
-      background: #87ceeb;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Kirby Style Game</title>
+<style>
+  body {
+    margin: 0;
+    background: #1e293b;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+  }
+  canvas {
+    border: 4px solid white;
+    border-radius: 12px;
+    background: skyblue;
+  }
+</style>
 </head>
-
 <body>
-  <canvas id="game" width="1000" height="560"></canvas>
 
-  <script>
-    const canvas = document.getElementById("game");
-    const ctx = canvas.getContext("2d");
+<canvas id="game" width="1000" height="560"></canvas>
 
-    const WIDTH = canvas.width;
-    const HEIGHT = canvas.height;
-    const GROUND = 480;
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-    const GRAVITY = 0.55;
-    const SPEED = 4;
-    const JUMP = -12;
+const W = canvas.width;
+const H = canvas.height;
+const GROUND = 480;
 
-    const keys = {};
+const keys = {};
 
-    const player = {
-      x: 120,
-      y: 380,
-      w: 42,
-      h: 42,
-      vx: 0,
-      vy: 0,
-      onGround: false,
-      facing: 1,
-      power: "none",
-      inhaling: false
-    };
+let attackCooldown = 0;
 
-    const enemies = [
-      {
-        x: 420,
-        y: 440,
-        color: "orange",
-        type: "fire",
-        dir: -1
-      },
-      {
-        x: 700,
-        y: 440,
-        color: "deepskyblue",
-        type: "sword",
-        dir: 1
-      },
-      {
-        x: 980,
-        y: 440,
-        color: "limegreen",
-        type: "none",
-        dir: -1
-      }
-    ];
+const player = {
+  x: 120,
+  y: 380,
+  w: 40,
+  h: 40,
+  vx: 0,
+  vy: 0,
+  onGround: false,
+  facing: 1,
+  power: "none",
+  inhaling: false
+};
 
-    const projectiles = [];
+const enemies = [
+  { x: 450, y: 440, dir: 1, color: "orange", type: "fire" },
+  { x: 700, y: 440, dir: -1, color: "deepskyblue", type: "sword" },
+  { x: 900, y: 440, dir: 1, color: "limegreen", type: "none" }
+];
 
-    document.addEventListener("keydown", (e) => {
-      keys[e.key.toLowerCase()] = true;
-    });
+const projectiles = [];
 
-    document.addEventListener("keyup", (e) => {
-      keys[e.key.toLowerCase()] = false;
-    });
+document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
-    function shoot() {
-      if (player.power === "none") return;
+function shoot() {
+  if (player.power === "none" || attackCooldown > 0) return;
 
-      projectiles.push({
-        x: player.x + 20,
-        y: player.y + 20,
-        dir: player.facing,
-        power: player.power
-      });
-    }
+  projectiles.push({
+    x: player.x + 20,
+    y: player.y + 20,
+    dir: player.facing,
+    power: player.power
+  });
 
-    function update() {
+  attackCooldown = 20;
+}
 
-      // MOVEMENT
-      player.vx = 0;
+function rectHit(a, b) {
+  return (
+    a.x < b.x + 34 &&
+    a.x + 30 > b.x &&
+    a.y < b.y + 34 &&
+    a.y + 30 > b.y
+  );
+}
 
-      if (keys["a"] || keys["arrowleft"]) {
-        player.vx = -SPEED;
-        player.facing = -1;
-      }
+function update() {
+  // cooldown
+  if (attackCooldown > 0) attackCooldown--;
 
-      if (keys["d"] || keys["arrowright"]) {
-        player.vx = SPEED;
-        player.facing = 1;
-      }
+  player.vx = 0;
+  player.inhaling = false;
 
-      if ((keys["w"] || keys[" "] || keys["arrowup"]) && player.onGround) {
-        player.vy = JUMP;
-      }
+  // movement
+  if (keys["a"] || keys["arrowleft"]) {
+    player.vx = -4;
+    player.facing = -1;
+  }
 
-      player.inhaling = false;
+  if (keys["d"] || keys["arrowright"]) {
+    player.vx = 4;
+    player.facing = 1;
+  }
 
-      // INHALE
-      if (keys["j"]) {
-        player.inhaling = true;
+  // jump
+  if ((keys["w"] || keys[" "]) && player.onGround) {
+    player.vy = -12;
+  }
 
-        for (let i = enemies.length - 1; i >= 0; i--) {
-          const e = enemies[i];
+  // inhale
+  if (keys["j"]) {
+    player.inhaling = true;
 
-          const dx = e.x - player.x;
-          const dy = Math.abs(e.y - player.y);
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      const e = enemies[i];
 
-          const close = Math.abs(dx) < 70 && dy < 50;
-          const inFront = player.facing === 1 ? dx > 0 : dx < 0;
+      const dx = e.x - player.x;
+      const dy = Math.abs(e.y - player.y);
 
-          if (close && inFront) {
-            player.power = e.type;
-            enemies.splice(i, 1);
-          }
-        }
-      }
+      const inFront = player.facing === 1 ? dx > 0 : dx < 0;
 
-      // ATTACK
-      if (keys["k"] && !keys["_attackHeld"]) {
-        shoot();
-        keys["_attackHeld"] = true;
-      }
-
-      if (!keys["k"]) {
-        keys["_attackHeld"] = false;
-      }
-
-      // GRAVITY
-      player.vy += GRAVITY;
-
-      player.x += player.vx;
-      player.y += player.vy;
-
-      // GROUND COLLISION
-      if (player.y + player.h >= GROUND) {
-        player.y = GROUND - player.h;
-        player.vy = 0;
-        player.onGround = true;
-      } else {
-        player.onGround = false;
-      }
-
-      // ENEMY MOVEMENT
-      enemies.forEach((e) => {
-        e.x += e.dir * 1.1;
-
-        if (e.x < 300) e.dir = 1;
-        if (e.x > 1400) e.dir = -1;
-      });
-
-      // PROJECTILES
-      for (let i = projectiles.length - 1; i >= 0; i--) {
-        const p = projectiles[i];
-
-        p.x += p.dir * 7;
-
-        if (p.x < -100 || p.x > 3000) {
-          projectiles.splice(i, 1);
-        }
-      }
-
-      // PROJECTILE HITS
-      for (let i = enemies.length - 1; i >= 0; i--) {
-        const e = enemies[i];
-
-        for (let j = projectiles.length - 1; j >= 0; j--) {
-          const p = projectiles[j];
-
-          const hit =
-            p.x < e.x + 34 &&
-            p.x + 12 > e.x &&
-            p.y < e.y + 34 &&
-            p.y + 12 > e.y;
-
-          if (hit) {
-            enemies.splice(i, 1);
-            projectiles.splice(j, 1);
-            break;
-          }
-        }
+      if (Math.abs(dx) < 70 && dy < 50 && inFront) {
+        player.power = e.type;
+        enemies.splice(i, 1);
       }
     }
+  }
 
-    function draw() {
-      ctx.clearRect(0, 0, WIDTH, HEIGHT);
+  // attack
+  if (keys["k"]) shoot();
 
-      // SKY
-      ctx.fillStyle = "#9be7ff";
-      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  // physics
+  player.vy += 0.5;
+  player.x += player.vx;
+  player.y += player.vy;
 
-      // GROUND
-      ctx.fillStyle = "#6bd16b";
-      ctx.fillRect(0, GROUND, WIDTH, HEIGHT - GROUND);
+  // bounds
+  if (player.x < 0) player.x = 0;
+  if (player.x > W - player.w) player.x = W - player.w;
 
-      // GROUND DETAIL
-      ctx.fillStyle = "#4a9f4a";
+  // ground
+  if (player.y + player.h >= GROUND) {
+    player.y = GROUND - player.h;
+    player.vy = 0;
+    player.onGround = true;
+  } else {
+    player.onGround = false;
+  }
 
-      for (let i = 0; i < WIDTH; i += 64) {
-        ctx.fillRect(i, GROUND - 10, 64, 10);
-      }
+  // enemies move
+  enemies.forEach(e => {
+    e.x += e.dir * 1.2;
 
-      // PLAYER
-      ctx.fillStyle = "pink";
+    if (e.x < 300) e.dir = 1;
+    if (e.x > 950) e.dir = -1;
+  });
 
-      ctx.beginPath();
-      ctx.arc(player.x + 21, player.y + 21, 21, 0, Math.PI * 2);
-      ctx.fill();
+  // projectiles
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.x += p.dir * 7;
 
-      // EYES
-      ctx.fillStyle = "black";
-
-      ctx.beginPath();
-      ctx.arc(player.x + 16, player.y + 17, 2, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.arc(player.x + 26, player.y + 17, 2, 0, Math.PI * 2);
-      ctx.fill();
-
-      // INHALE EFFECT
-      if (player.inhaling) {
-        ctx.strokeStyle = "white";
-        ctx.lineWidth = 4;
-
-        const mouthX = player.facing === 1
-          ? player.x + 40
-          : player.x + 2;
-
-        ctx.beginPath();
-        ctx.moveTo(mouthX, player.y + 21);
-        ctx.lineTo(mouthX + player.facing * 50, player.y + 21);
-        ctx.stroke();
-      }
-
-      // POWERS
-      if (player.power === "fire") {
-        ctx.fillStyle = "orange";
-        ctx.fillRect(player.x + 8, player.y - 8, 26, 8);
-      }
-
-      if (player.power === "sword") {
-        ctx.fillStyle = "silver";
-        ctx.fillRect(player.x + 32, player.y + 12, 22, 5);
-      }
-
-      // ENEMIES
-      enemies.forEach((e) => {
-        ctx.fillStyle = e.color;
-
-        ctx.beginPath();
-        ctx.arc(e.x + 17, e.y + 17, 17, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = "black";
-        ctx.fillRect(e.x + 10, e.y + 12, 3, 3);
-        ctx.fillRect(e.x + 20, e.y + 12, 3, 3);
-      });
-
-      // PROJECTILES
-      projectiles.forEach((p) => {
-        ctx.fillStyle =
-          p.power === "fire" ? "red" : "white";
-
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      // UI
-      ctx.fillStyle = "black";
-      ctx.font = "20px Arial";
-
-      ctx.fillText("Power: " + player.power, 20, 30);
-
-      ctx.fillText(
-        "A/D Move | W Jump | J Eat | K Attack",
-        20,
-        55
-      );
+    if (p.x < -50 || p.x > W + 50) {
+      projectiles.splice(i, 1);
     }
+  }
 
-    function loop() {
-      update();
-      draw();
-      requestAnimationFrame(loop);
+  // projectile hits
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    for (let j = projectiles.length - 1; j >= 0; j--) {
+      if (rectHit(enemies[i], projectiles[j])) {
+        enemies.splice(i, 1);
+        projectiles.splice(j, 1);
+        break;
+      }
     }
+  }
+}
 
-    loop();
-  </script>
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // sky
+  ctx.fillStyle = "#9be7ff";
+  ctx.fillRect(0, 0, W, H);
+
+  // ground
+  ctx.fillStyle = "#6bd16b";
+  ctx.fillRect(0, GROUND, W, H);
+
+  // player
+  ctx.fillStyle = "pink";
+  ctx.beginPath();
+  ctx.arc(player.x + 20, player.y + 20, 20, 0, Math.PI * 2);
+  ctx.fill();
+
+  // eyes
+  ctx.fillStyle = "black";
+  ctx.fillRect(player.x + 15, player.y + 15, 3, 3);
+  ctx.fillRect(player.x + 25, player.y + 15, 3, 3);
+
+  // inhale line
+  if (player.inhaling) {
+    ctx.strokeStyle = "white";
+    ctx.beginPath();
+    ctx.moveTo(player.x + 20, player.y + 20);
+    ctx.lineTo(player.x + player.facing * 60, player.y + 20);
+    ctx.stroke();
+  }
+
+  // power
+  if (player.power === "fire") {
+    ctx.fillStyle = "orange";
+    ctx.fillRect(player.x + 10, player.y - 8, 20, 8);
+  }
+
+  if (player.power === "sword") {
+    ctx.fillStyle = "silver";
+    ctx.fillRect(player.x + 30, player.y + 15, 20, 4);
+  }
+
+  // enemies
+  enemies.forEach(e => {
+    ctx.fillStyle = e.color;
+    ctx.beginPath();
+    ctx.arc(e.x + 17, e.y + 17, 17, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // projectiles
+  projectiles.forEach(p => {
+    ctx.fillStyle = p.power === "fire" ? "red" : "white";
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // UI
+  ctx.fillStyle = "black";
+  ctx.font = "18px Arial";
+  ctx.fillText("Power: " + player.power, 20, 30);
+  ctx.fillText("A/D Move | W Jump | J Eat | K Attack", 20, 55);
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
 </body>
 </html>
