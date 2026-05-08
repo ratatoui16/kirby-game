@@ -2,252 +2,204 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Kirby Style Game</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Minesweeper 12x12</title>
 <style>
   body {
-    margin: 0;
-    background: #1e293b;
+    font-family: Arial, sans-serif;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
     align-items: center;
-    height: 100vh;
+    margin-top: 20px;
+    background: #f4f4f4;
   }
-  canvas {
-    border: 4px solid white;
-    border-radius: 12px;
-    background: skyblue;
+  h1 { margin-bottom: 10px; }
+  #board {
+    display: grid;
+    grid-template-columns: repeat(12, 30px);
+    grid-template-rows: repeat(12, 30px);
+    gap: 2px;
+  }
+  .cell {
+    width: 30px;
+    height: 30px;
+    background: #ccc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    cursor: pointer;
+    user-select: none;
+  }
+  .revealed {
+    background: #eee;
+    cursor: default;
+  }
+  .mine {
+    background: red;
+  }
+  #status {
+    margin: 10px;
+    font-size: 18px;
+  }
+  button {
+    margin-bottom: 10px;
+    padding: 6px 12px;
   }
 </style>
 </head>
 <body>
-
-<canvas id="game" width="1000" height="560"></canvas>
+<h1>Minesweeper (12x12)</h1>
+<button onclick="initGame()">Restart</button>
+<div id="status"></div>
+<div id="board"></div>
 
 <script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+const size = 12;
+const mineCount = 25;
+let board = [];
+let revealed = [];
+let gameOver = false;
 
-const W = canvas.width;
-const H = canvas.height;
-const GROUND = 480;
+function initGame() {
+  board = [];
+  revealed = [];
+  gameOver = false;
+  document.getElementById('status').textContent = '';
 
-const keys = {};
-
-let attackCooldown = 0;
-
-const player = {
-  x: 120,
-  y: 380,
-  w: 40,
-  h: 40,
-  vx: 0,
-  vy: 0,
-  onGround: false,
-  facing: 1,
-  power: "none",
-  inhaling: false
-};
-
-const enemies = [
-  { x: 450, y: 440, dir: 1, color: "orange", type: "fire" },
-  { x: 700, y: 440, dir: -1, color: "deepskyblue", type: "sword" },
-  { x: 900, y: 440, dir: 1, color: "limegreen", type: "none" }
-];
-
-const projectiles = [];
-
-document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
-document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
-
-function shoot() {
-  if (player.power === "none" || attackCooldown > 0) return;
-
-  projectiles.push({
-    x: player.x + 20,
-    y: player.y + 20,
-    dir: player.facing,
-    power: player.power
-  });
-
-  attackCooldown = 20;
-}
-
-function rectHit(a, b) {
-  return (
-    a.x < b.x + 34 &&
-    a.x + 30 > b.x &&
-    a.y < b.y + 34 &&
-    a.y + 30 > b.y
-  );
-}
-
-function update() {
-  // cooldown
-  if (attackCooldown > 0) attackCooldown--;
-
-  player.vx = 0;
-  player.inhaling = false;
-
-  // movement
-  if (keys["a"] || keys["arrowleft"]) {
-    player.vx = -4;
-    player.facing = -1;
+  // create empty board
+  for (let r = 0; r < size; r++) {
+    board[r] = [];
+    revealed[r] = [];
+    for (let c = 0; c < size; c++) {
+      board[r][c] = { mine: false, count: 0 };
+      revealed[r][c] = false;
+    }
   }
 
-  if (keys["d"] || keys["arrowright"]) {
-    player.vx = 4;
-    player.facing = 1;
+  // place mines
+  let placed = 0;
+  while (placed < mineCount) {
+    let r = Math.floor(Math.random() * size);
+    let c = Math.floor(Math.random() * size);
+    if (!board[r][c].mine) {
+      board[r][c].mine = true;
+      placed++;
+    }
   }
 
-  // jump
-  if ((keys["w"] || keys[" "]) && player.onGround) {
-    player.vy = -12;
-  }
-
-  // inhale
-  if (keys["j"]) {
-    player.inhaling = true;
-
-    for (let i = enemies.length - 1; i >= 0; i--) {
-      const e = enemies[i];
-
-      const dx = e.x - player.x;
-      const dy = Math.abs(e.y - player.y);
-
-      const inFront = player.facing === 1 ? dx > 0 : dx < 0;
-
-      if (Math.abs(dx) < 70 && dy < 50 && inFront) {
-        player.power = e.type;
-        enemies.splice(i, 1);
+  // calculate numbers
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      if (board[r][c].mine) continue;
+      let count = 0;
+      for (let i = -1; i <= 1; i++) {
+        for (let j = -1; j <= 1; j++) {
+          let nr = r + i, nc = c + j;
+          if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
+            if (board[nr][nc].mine) count++;
+          }
+        }
       }
+      board[r][c].count = count;
     }
   }
 
-  // attack
-  if (keys["k"]) shoot();
+  render();
+}
 
-  // physics
-  player.vy += 0.5;
-  player.x += player.vx;
-  player.y += player.vy;
+function render() {
+  const boardDiv = document.getElementById('board');
+  boardDiv.innerHTML = '';
 
-  // bounds
-  if (player.x < 0) player.x = 0;
-  if (player.x > W - player.w) player.x = W - player.w;
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
 
-  // ground
-  if (player.y + player.h >= GROUND) {
-    player.y = GROUND - player.h;
-    player.vy = 0;
-    player.onGround = true;
-  } else {
-    player.onGround = false;
-  }
+      if (revealed[r][c]) {
+        cell.classList.add('revealed');
+        if (board[r][c].mine) {
+          cell.classList.add('mine');
+          cell.textContent = '💣';
+        } else if (board[r][c].count > 0) {
+          cell.textContent = board[r][c].count;
+        }
+      }
 
-  // enemies move
-  enemies.forEach(e => {
-    e.x += e.dir * 1.2;
-
-    if (e.x < 300) e.dir = 1;
-    if (e.x > 950) e.dir = -1;
-  });
-
-  // projectiles
-  for (let i = projectiles.length - 1; i >= 0; i--) {
-    const p = projectiles[i];
-    p.x += p.dir * 7;
-
-    if (p.x < -50 || p.x > W + 50) {
-      projectiles.splice(i, 1);
+      cell.addEventListener('click', () => reveal(r, c));
+      boardDiv.appendChild(cell);
     }
   }
+}
 
-  // projectile hits
-  for (let i = enemies.length - 1; i >= 0; i--) {
-    for (let j = projectiles.length - 1; j >= 0; j--) {
-      if (rectHit(enemies[i], projectiles[j])) {
-        enemies.splice(i, 1);
-        projectiles.splice(j, 1);
-        break;
+function reveal(r, c) {
+  if (gameOver || revealed[r][c]) return;
+
+  revealed[r][c] = true;
+
+  if (board[r][c].mine) {
+    gameOver = true;
+    document.getElementById('status').textContent = 'Game Over!';
+    revealAllMines();
+    render();
+    return;
+  }
+
+  if (board[r][c].count === 0) {
+    floodFill(r, c);
+  }
+
+  checkWin();
+  render();
+}
+
+function floodFill(r, c) {
+  for (let i = -1; i <= 1; i++) {
+    for (let j = -1; j <= 1; j++) {
+      let nr = r + i, nc = c + j;
+      if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
+        if (!revealed[nr][nc] && !board[nr][nc].mine) {
+          revealed[nr][nc] = true;
+          if (board[nr][nc].count === 0) {
+            floodFill(nr, nc);
+          }
+        }
       }
     }
   }
 }
 
-function draw() {
-  ctx.clearRect(0, 0, W, H);
-
-  // sky
-  ctx.fillStyle = "#9be7ff";
-  ctx.fillRect(0, 0, W, H);
-
-  // ground
-  ctx.fillStyle = "#6bd16b";
-  ctx.fillRect(0, GROUND, W, H);
-
-  // player
-  ctx.fillStyle = "pink";
-  ctx.beginPath();
-  ctx.arc(player.x + 20, player.y + 20, 20, 0, Math.PI * 2);
-  ctx.fill();
-
-  // eyes
-  ctx.fillStyle = "black";
-  ctx.fillRect(player.x + 15, player.y + 15, 3, 3);
-  ctx.fillRect(player.x + 25, player.y + 15, 3, 3);
-
-  // inhale line
-  if (player.inhaling) {
-    ctx.strokeStyle = "white";
-    ctx.beginPath();
-    ctx.moveTo(player.x + 20, player.y + 20);
-    ctx.lineTo(player.x + player.facing * 60, player.y + 20);
-    ctx.stroke();
+function revealAllMines() {
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      if (board[r][c].mine) {
+        revealed[r][c] = true;
+      }
+    }
   }
-
-  // power
-  if (player.power === "fire") {
-    ctx.fillStyle = "orange";
-    ctx.fillRect(player.x + 10, player.y - 8, 20, 8);
-  }
-
-  if (player.power === "sword") {
-    ctx.fillStyle = "silver";
-    ctx.fillRect(player.x + 30, player.y + 15, 20, 4);
-  }
-
-  // enemies
-  enemies.forEach(e => {
-    ctx.fillStyle = e.color;
-    ctx.beginPath();
-    ctx.arc(e.x + 17, e.y + 17, 17, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  // projectiles
-  projectiles.forEach(p => {
-    ctx.fillStyle = p.power === "fire" ? "red" : "white";
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  // UI
-  ctx.fillStyle = "black";
-  ctx.font = "18px Arial";
-  ctx.fillText("Power: " + player.power, 20, 30);
-  ctx.fillText("A/D Move | W Jump | J Eat | K Attack", 20, 55);
 }
 
-function loop() {
-  update();
-  draw();
-  requestAnimationFrame(loop);
+function checkWin() {
+  let safeCells = 0;
+  let revealedSafe = 0;
+
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      if (!board[r][c].mine) {
+        safeCells++;
+        if (revealed[r][c]) revealedSafe++;
+      }
+    }
+  }
+
+  if (revealedSafe === safeCells) {
+    gameOver = true;
+    document.getElementById('status').textContent = 'You Win!';
+  }
 }
 
-loop();
+initGame();
 </script>
-
 </body>
 </html>
